@@ -1,0 +1,18 @@
+int main(){
+	decl
+	int t,m;
+	enddecl
+	begin
+		t=exposcall("Fork");
+		breakpoint;
+		if(t!=0) then
+			//t=exposcall("Write",-2,"parent");
+			t=exposcall("Exec","even_s14.xsm");
+		
+		else
+			//t=exposcall("Write",-2,"child");
+			t=exposcall("Exec","odd_s14.xsm");
+		endif;
+		return 0;
+	end
+}

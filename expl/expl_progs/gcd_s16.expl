@@ -1,0 +1,29 @@
+int main(){
+decl
+	int num1, num2, temp, result;
+enddecl
+begin
+	breakpoint;
+	temp=exposcall("Read", -1, num1);
+	temp=exposcall("Read", -1, num2);
+	breakpoint;
+	
+	if(num2 > num1) then
+		temp=num1;
+		num1=num2;
+		num2=temp;
+	endif;
+	
+	while(num2 > 0) do
+		result=num1 % num2;
+		num1=num2;
+		num2=result;
+	endwhile;
+	
+	breakpoint;
+	temp=exposcall("Write", -2, num1);
+	breakpoint;
+	
+	return 0;
+end
+}
