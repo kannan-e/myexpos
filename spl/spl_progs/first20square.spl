@@ -1,0 +1,10 @@
+alias count R0;
+count=2;
+alias prod R1;
+prod=1;
+while(count <= 20) do
+	prod=prod+(count * count);
+	count=count+1;
+breakpoint;
+endwhile;
+print prod;

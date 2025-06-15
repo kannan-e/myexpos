@@ -1,0 +1,141 @@
+breakpoint;
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=8;
+alias usersp R1;
+alias pPID R2;
+pPID=[SYSTEM_STATUS_TABLE+1];
+usersp=SP;
+[PROCESS_TABLE+pPID*16+13]=usersp;
+SP=[PROCESS_TABLE+pPID*16+11]*512-1;
+
+multipush(R1,R2);
+R1=1;
+call PROCESS_MANAGER;
+multipop(R1,R2);
+alias cPID R0;
+
+if(cPID==-1) then
+	alias physicalAddrRetVal R7;
+	physicalAddrRetVal=([PTBR+2*((usersp-1)/512)]*512)+((usersp-1)%512);
+	[physicalAddrRetVal]=-1;
+	SP=usersp;
+	[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=0;
+	ireturn;
+else
+	if(([PTBR+4]==-1)) then
+		multipush(R0,R1,R2);
+		R1=1;
+		call MEMORY_MANAGER;
+		[PTBR+4]=R0;
+		[PTBR+5]="1110";
+		R1=1;
+		call MEMORY_MANAGER;
+		[PTBR+6]=R0;
+		[PTBR+7]="1110";
+		multipop(R0,R1,R2);
+	endif;
+	
+		alias stack1 R3;
+		alias stack2 R4;
+		alias cuserpage R5; 
+		multipush(R0,R1,R2);
+		R1=1;
+		call MEMORY_MANAGER;
+		stack1=R0;
+		multipop(R0,R1,R2);
+		multipush(R0,R1,R2,R3);
+		R1=1;
+		call MEMORY_MANAGER;
+		stack2=R0;
+		multipop(R0,R1,R2,R3);
+		multipush(R0,R1,R2,R3,R4);
+		R1=1;
+		call MEMORY_MANAGER;
+		cuserpage=R0;
+		multipop(R0,R1,R2,R3,R4);
+		
+		alias cprocessTableEntry R6;
+		cprocessTableEntry=PROCESS_TABLE+16*cPID;
+		alias pprocessTableEntry R11;
+		pprocessTableEntry=PROCESS_TABLE+16*pPID;
+		[cprocessTableEntry+3]=[pprocessTableEntry+3];
+		[cprocessTableEntry+4]=CREATED;
+		//[cprocessTableEntry+5]=[pprocessTableEntry+5];
+		[cprocessTableEntry+6]=[pprocessTableEntry+6];
+		[cprocessTableEntry+7]=[pprocessTableEntry+7];
+		[cprocessTableEntry+9]=[pprocessTableEntry+9];
+		[cprocessTableEntry+10]=[pprocessTableEntry+10];
+		[cprocessTableEntry+13]=[pprocessTableEntry+13];
+		[cprocessTableEntry+2]=pPID;
+		[cprocessTableEntry+11]=cuserpage;
+		[cprocessTableEntry+12]=0;
+		[cprocessTableEntry+0]=0;
+		[cprocessTableEntry+9]=0;
+		
+		//Copy contents of per process resource table
+		alias counter R8;
+		counter=1;
+		while(counter<=16) do
+			[([cprocessTableEntry+11]+1)*512-counter]=[([pprocessTableEntry+11]+1)*512-counter];		
+			counter=counter+1;
+		endwhile;
+		
+		//Copy contents of Disk Map Table
+		counter=0;
+		while(counter<10) do
+			[DISK_MAP_TABLE+10*pPID+counter]=[DISK_MAP_TABLE+10*cPID+counter];
+			counter=counter+1;
+		endwhile;
+		
+		alias pPTBR R12;
+		alias cPTBR R13;
+		pPTBR=[pprocessTableEntry+14];
+		cPTBR=[cprocessTableEntry+14];
+		
+		//Copy contents of Library, Heap, Code Pages
+		counter=0;
+		while(counter<8) do
+			[cPTBR+2*counter]=[pPTBR+2*counter];
+			[MEMORY_FREE_LIST+[pPTBR+2*counter]]=[MEMORY_FREE_LIST+[pPTBR+2*counter]]+1;
+			[cPTBR+2*counter+1]=[pPTBR+2*counter+1];
+			counter=counter+1;
+		endwhile;
+		[cPTBR+16]=stack1;
+		[cPTBR+17]=[pPTBR+17];
+		[cPTBR+18]=stack2;
+		[cPTBR+19]=[pPTBR+19];
+		
+		alias cstack R9;
+		alias pstack R10;
+		pstack=[pPTBR+16];
+		
+		//Copy contents of User Stack from Parent to Child
+		counter=0;
+		while(counter<512) do
+			[stack1*512+counter]=[pstack*512+counter];
+			counter=counter+1;
+		endwhile;
+		counter=0;
+		pstack=[PTBR+18];
+		counter=0;
+		while(counter<512) do
+			[stack2*512+counter]=[pstack*512+counter];
+			counter=counter+1;
+		endwhile;
+		
+		[cuserpage*512]=BP;
+		alias physicalAddrRetVal R7;
+		physicalAddrRetVal=([pPTBR+2*((usersp-1)/512)]*512)+((usersp-1)%512);
+		[physicalAddrRetVal]=cPID;
+		physicalAddrRetVal=([cPTBR+2*((usersp-1)/512)]*512)+((usersp-1)%512);
+		[physicalAddrRetVal]=0;
+		[PROCESS_TABLE+pPID*16+9]=0;
+		SP=[PROCESS_TABLE+pPID*16+13];
+
+		ireturn;
+	
+
+
+
+
+
+endif;

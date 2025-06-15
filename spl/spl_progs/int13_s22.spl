@@ -1,0 +1,76 @@
+alias userSP R0;
+userSP=SP;
+alias syscallNo R1;
+syscallNo=[[PTBR+2*((userSP-5)/512)]*512 + (userSP-5)%512];
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 13]=userSP;
+SP=[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 11]*512 - 1;
+alias retVal R6;
+retVal=([PTBR+2*((userSP-1)/512)]*512)+((userSP-1)%512);
+
+if(syscallNo==17) then
+	[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=17;
+	alias counter R2;
+	counter=0;
+	alias semEntry R3;
+	while(counter < 8) do
+		if([([PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]+1)*512-16+2*counter]==-1) then
+			breakpoint;
+			[([PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]+1)*512-16+2*counter]=1;
+			multipush(R1,R2,R6);
+			R1=6;
+			R2=[SYSTEM_STATUS_TABLE+1];
+			call RESOURCE_MANAGER;
+			breakpoint;
+			semEntry=R0;
+			multipop(R1,R2,R6);
+			if(semEntry==-1) then
+				[retVal]=-2;
+				SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+				[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=0;
+				ireturn;
+			endif;
+			break;
+		endif;
+		counter=counter+1;
+	endwhile;
+	
+	if(counter==9) then
+		[retVal]=-1;
+		SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+		[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=0;
+		ireturn;
+	endif;
+	
+	alias semID R4;
+	semID=counter;
+	[([PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]+1)*512-16+2*counter+1]=semEntry;
+	[retVal]=semID;
+	SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+	[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=0;
+	breakpoint;
+	ireturn;
+endif;
+
+if(syscallNo==18) then
+	[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=18;
+	alias semID R2;
+	semID=[[PTBR+2*((userSP-4)/512)]*512+(userSP-4)%512];
+	if((semID<0)||(semID>7)||([([PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]+1)*512-16+2*semID]!=1)) then
+		[retVal]=-1;
+		SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+		[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=0;
+		ireturn;
+	endif;
+	multipush(R1,R2,R6);
+	R1=7;
+	R2=[([PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11]+1)*512-16+2*semID+1];
+	R3=[SYSTEM_STATUS_TABLE+1];
+	call RESOURCE_MANAGER;
+	multipop(R1,R2,R6);
+	[retVal]=0;
+	SP=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+13];
+	[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+9]=0;
+	ireturn;
+
+endif;

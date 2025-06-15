@@ -1,0 +1,85 @@
+alias functionNum R1;
+alias currentPID R2;
+
+//Acquire Disk
+if(functionNum==3) then
+	while([DISK_STATUS_TABLE] == 1) do
+		[PROCESS_TABLE + currentPID*16 + 4]=WAIT_DISK;
+		multipush(R1,R2);
+		call SCHEDULER;
+		multipop(R1,R2);
+	endwhile;
+	[DISK_STATUS_TABLE]=1;
+	[DISK_STATUS_TABLE + 4]=currentPID;
+	return;
+endif;
+
+//Acquire Semaphore
+if(functionNum==6) then
+	alias counter R3;
+	counter=0;
+	while(counter<32) do
+		if([SEMAPHORE_TABLE+4*counter+1]==0) then
+			[SEMAPHORE_TABLE+4*counter+1]=1;
+			[SEMAPHORE_TABLE+4*counter+0]=-1;
+			R0=counter;
+			return;
+		endif;
+		counter=counter+1;
+	endwhile;
+	R0=-1;
+	return;
+endif;
+
+//Release Semaphore
+if(functionNum==7) then
+	alias semEntry R2;
+	alias PID R3;
+	alias counter R4;
+	if([SEMAPHORE_TABLE + 4*semEntry]==PID) then
+			[SEMAPHORE_TABLE+4*semEntry+0]=-1;
+			counter=0;
+			while(counter<16) do
+				if(([PROCESS_TABLE+16*counter+4]==WAIT_SEMAPHORE)&&([PROCESS_TABLE+16*counter+5]==semEntry)) then
+					[PROCESS_TABLE+16*counter+4]=READY;
+				endif;
+				counter=counter+1;
+			endwhile;
+	endif;
+	[SEMAPHORE_TABLE+4*semEntry+1]=[SEMAPHORE_TABLE+4*semEntry+1]-1;
+	R0=0;
+	return;
+endif;
+
+//Acquire Terminal
+if(functionNum == 8) then
+	while([TERMINAL_STATUS_TABLE]==1) do
+		[PROCESS_TABLE + currentPID*16 + 4]=WAIT_TERMINAL;
+		multipush(R1,R2);
+		call SCHEDULER;
+		multipop(R1, R2);
+	endwhile;
+	[TERMINAL_STATUS_TABLE]=1;
+	[TERMINAL_STATUS_TABLE+1]=currentPID;
+	return;
+endif;
+
+//Release Terminal
+if(functionNum == 9) then
+	if(currentPID==[TERMINAL_STATUS_TABLE+1]) then
+		[TERMINAL_STATUS_TABLE]=0;
+		alias counter R3;
+		counter=0;
+		while(counter<16) do
+			if([PROCESS_TABLE+(counter*16)+4]==WAIT_TERMINAL) then
+				[PROCESS_TABLE+(counter*16)+4]=READY;
+			endif;
+			counter=counter+1;
+		endwhile;
+		R0=0;
+		return;
+	else
+		R0=-1;
+		return;
+	endif;
+endif;

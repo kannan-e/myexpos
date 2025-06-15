@@ -1,0 +1,79 @@
+alias userSP R0;
+userSP=SP;
+alias syscallNo R1;
+syscallNo=[[PTBR+2*((userSP-5)/512)]*512+(userSP-5)%512];
+breakpoint;
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 13]=userSP;
+SP=[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 11]*512-1;
+
+//Get pid
+if(syscallNo==11) then
+	alias retVal R6;
+	retVal=[PTBR+2*((userSP-1)/512)]*512+((userSP-1)%512);
+	[retVal]=[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 1];
+	SP=userSP;
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 9]=0;
+	ireturn;
+endif;
+
+//Get parent pid
+if(syscallNo==12) then
+	alias retVal R6;
+	retVal=[PTBR+2*((userSP-1)/512)]*512+((userSP-1)%512);
+	[retVal]=[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 2];
+	SP=userSP;
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 9]=0;
+	ireturn;
+endif;
+
+//Wait System Call
+if(syscallNo==13) then
+	breakpoint;
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 9]=13;
+	alias waitPID R2;
+	waitPID=[[PTBR+2*((userSP-4)/512)]*512+(userSP-4)%512];
+	breakpoint;
+	if((waitPID==[SYSTEM_STATUS_TABLE+1]) || (waitPID<0) || (waitPID>15) || ([PROCESS_TABLE+waitPID*16+4]==TERMINATED)) then
+		alias retVal R6;
+		retVal=([PTBR+2*((userSP-1)/512)]*512)+((userSP-1)%512);
+		[retVal]=-1;
+		SP=userSP;
+		[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 9]=0;
+		ireturn;
+	else
+		breakpoint;
+		[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 4]=WAIT_PROCESS;
+		[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 5]=waitPID;
+		multipush(R0,R1,R2);
+		call SCHEDULER;
+		multipop(R0,R1,R2);
+		alias retVal R6;
+		retVal=([PTBR+2*((userSP-1)/512)]*512)+((userSP-1)%512);
+		[retVal]=0;
+		SP=userSP;
+		[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 9]=0;
+		breakpoint;
+		ireturn;
+	endif;
+endif;
+
+//Signal System Call
+if(syscallNo==14) then
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 9]=14;
+	alias counter R3;
+	counter=0;
+	while(counter < 16) do
+		if(([PROCESS_TABLE+counter*16+4]==WAIT_PROCESS) && ([PROCESS_TABLE+counter*16+5]==[SYSTEM_STATUS_TABLE+1]) ) then
+			[PROCESS_TABLE + counter*16 + 4]=READY;
+		endif;
+		counter=counter+1;
+	endwhile;
+	
+	alias retVal R6;
+	retVal=([PTBR+2*((userSP-1)/512)]*512)+((userSP-1)%512);
+	[retVal]=0;
+	SP=userSP;
+	[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 9]=0;
+	ireturn;
+endif;
+
